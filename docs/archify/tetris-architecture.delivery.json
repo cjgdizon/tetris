@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "receiptId": "22339ffd-cbd5-4960-b117-cf06ff58644e",
+  "status": "current",
+  "command": "deliver",
+  "type": "architecture",
+  "input": "C:\\Users\\Cj\\Documents\\Tetris\\docs\\tetris-architecture.json",
+  "output": "C:\\Users\\Cj\\Documents\\Tetris\\docs\\tetris-architecture.html",
+  "specification": {
+    "sha256": "f78a828f8ae2a64028fe6a22ef38f83eab969dae84ea3cb1b8a14ba2124d76d2",
+    "bytes": 7383
+  },
+  "artifact": {
+    "sha256": "2c3123f1e325b20e5bae898d60cf2d7563a01c3b75803407c3b2c44dda45451e",
+    "bytes": 776707
+  }
+}

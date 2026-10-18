@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "receiptId": "f6adcdff-43c1-43b4-9a37-7e23258bff9e",
+  "status": "current",
+  "command": "deliver",
+  "type": "workflow",
+  "input": "C:\\Users\\Cj\\Documents\\Tetris\\docs\\tetris-flow.json",
+  "output": "C:\\Users\\Cj\\Documents\\Tetris\\docs\\tetris-flow.html",
+  "specification": {
+    "sha256": "1b211f5ff0f6d78f34378e96cd9e09b0531d509ee23d571c6a9ef3de9e037606",
+    "bytes": 5044
+  },
+  "artifact": {
+    "sha256": "0476006ca9b374a132b7431be5929239d9742347b5b974728b41c335360778b2",
+    "bytes": 761344
+  }
+}

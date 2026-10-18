@@ -1,0 +1,257 @@
+{
+  "schema_version": 2,
+  "diagram_type": "workflow",
+  "meta": {
+    "title": "Tetris Battle Frame Flow",
+    "quality_profile": "showcase",
+    "output": "docs/tetris-flow.html"
+  },
+  "lanes": [
+    {
+      "id": "input",
+      "label": "Input"
+    },
+    {
+      "id": "garbage",
+      "label": "Attack & Garbage"
+    },
+    {
+      "id": "engine",
+      "label": "Player Tick (60 Hz)"
+    },
+    {
+      "id": "match",
+      "label": "Round & Match",
+      "variant": "exception"
+    }
+  ],
+  "phases": [
+    {
+      "id": "intake",
+      "label": "Input",
+      "fromCol": 0,
+      "toCol": 0
+    },
+    {
+      "id": "tick",
+      "label": "Per-frame tick",
+      "fromCol": 1,
+      "toCol": 3,
+      "variant": "emphasis"
+    },
+    {
+      "id": "rounds",
+      "label": "Round + match",
+      "fromCol": 4,
+      "toCol": 5,
+      "variant": "dashed"
+    }
+  ],
+  "mainPath": [
+    "input",
+    "step",
+    "lock",
+    "clear",
+    "attack",
+    "land",
+    "topout",
+    "roundover",
+    "matchover"
+  ],
+  "nodes": [
+    {
+      "id": "bot",
+      "lane": "input",
+      "col": 1,
+      "type": "backend",
+      "label": "Bot",
+      "sublabel": "pick placement",
+      "width": 132
+    },
+    {
+      "id": "input",
+      "lane": "input",
+      "col": 0,
+      "type": "frontend",
+      "label": "Keyboard Input",
+      "sublabel": "DAS / ARR / SDF",
+      "width": 132
+    },
+    {
+      "id": "step",
+      "lane": "engine",
+      "col": 1,
+      "type": "backend",
+      "label": "Player Step",
+      "sublabel": "actions + gravity",
+      "width": 132
+    },
+    {
+      "id": "lock",
+      "lane": "engine",
+      "col": 2,
+      "type": "backend",
+      "label": "Piece Locks",
+      "sublabel": "lock delay / hard drop",
+      "width": 132
+    },
+    {
+      "id": "clear",
+      "lane": "garbage",
+      "col": 2,
+      "type": "backend",
+      "label": "Line Clear",
+      "sublabel": "T-spin check",
+      "width": 132
+    },
+    {
+      "id": "attack",
+      "lane": "garbage",
+      "col": 3,
+      "type": "backend",
+      "label": "Attack + Cancel",
+      "sublabel": "table, combo, B2B",
+      "width": 132
+    },
+    {
+      "id": "land",
+      "lane": "engine",
+      "col": 3,
+      "type": "backend",
+      "label": "Garbage Lands",
+      "sublabel": "max 8 rows per lock",
+      "width": 132
+    },
+    {
+      "id": "topout",
+      "lane": "engine",
+      "col": 4,
+      "type": "security",
+      "label": "Top-out?",
+      "sublabel": "else next tick",
+      "tag": "block / lock / push",
+      "width": 132
+    },
+    {
+      "id": "roundover",
+      "lane": "match",
+      "col": 4,
+      "type": "backend",
+      "label": "Round Over",
+      "sublabel": "winner +1, N wins?",
+      "width": 132
+    },
+    {
+      "id": "matchover",
+      "lane": "match",
+      "col": 5,
+      "type": "external",
+      "label": "Match Over",
+      "sublabel": "rematch menu",
+      "width": 132
+    }
+  ],
+  "edges": [
+    {
+      "id": "input-to-step",
+      "from": "input",
+      "to": "step",
+      "label": "actions",
+      "variant": "emphasis",
+      "fromSide": "bottom",
+      "toSide": "left"
+    },
+    {
+      "id": "bot-to-step",
+      "from": "bot",
+      "to": "step",
+      "label": "bot actions",
+      "variant": "dashed",
+      "role": "branch"
+    },
+    {
+      "id": "step-to-lock",
+      "from": "step",
+      "to": "lock",
+      "variant": "default"
+    },
+    {
+      "id": "lock-to-clear",
+      "from": "lock",
+      "to": "clear",
+      "label": "lines",
+      "variant": "emphasis"
+    },
+    {
+      "id": "clear-to-attack",
+      "from": "clear",
+      "to": "attack",
+      "variant": "default"
+    },
+    {
+      "id": "lock-to-land",
+      "from": "lock",
+      "to": "land",
+      "label": "no clear",
+      "variant": "dashed",
+      "role": "branch"
+    },
+    {
+      "id": "land-to-topout",
+      "from": "land",
+      "to": "topout",
+      "variant": "default"
+    },
+    {
+      "id": "topout-to-round",
+      "from": "topout",
+      "to": "roundover",
+      "label": "topped out",
+      "variant": "security",
+      "role": "error"
+    },
+    {
+      "id": "round-to-match",
+      "from": "roundover",
+      "to": "matchover",
+      "label": "N wins",
+      "variant": "emphasis"
+    },
+    {
+      "id": "round-to-step",
+      "from": "roundover",
+      "to": "step",
+      "label": "next round",
+      "variant": "dashed",
+      "role": "return",
+      "fromSide": "left",
+      "toSide": "bottom"
+    },
+    {
+      "id": "attack-to-land",
+      "from": "attack",
+      "to": "land",
+      "label": "opp. queue",
+      "variant": "dashed",
+      "role": "async"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Per-frame tick",
+      "items": [
+        "Human and bot share one action set",
+        "Attack cancels own pending garbage first"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "Round rules",
+      "items": [
+        "Garbage lands only after a lock with no clear",
+        "First to N round wins takes the match"
+      ]
+    }
+  ]
+}

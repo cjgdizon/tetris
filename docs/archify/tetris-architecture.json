@@ -1,0 +1,405 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "Tetris Battle Architecture",
+    "output": "docs/tetris-architecture.html",
+    "quality_profile": "showcase"
+  },
+  "components": [
+    {
+      "id": "human",
+      "type": "external",
+      "label": "Human Player",
+      "sublabel": "keyboard",
+      "pos": [
+        40,
+        340
+      ],
+      "size": [
+        130,
+        60
+      ]
+    },
+    {
+      "id": "input",
+      "type": "frontend",
+      "label": "input.py",
+      "sublabel": "DAS / ARR / SDF",
+      "pos": [
+        290,
+        340
+      ],
+      "size": [
+        130,
+        60
+      ]
+    },
+    {
+      "id": "settings",
+      "type": "database",
+      "label": "settings.py",
+      "sublabel": "settings.json",
+      "pos": [
+        290,
+        190
+      ],
+      "size": [
+        130,
+        60
+      ]
+    },
+    {
+      "id": "main",
+      "type": "backend",
+      "label": "main.py",
+      "sublabel": "fixed 60 Hz loop",
+      "pos": [
+        540,
+        340
+      ],
+      "size": [
+        130,
+        60
+      ]
+    },
+    {
+      "id": "screens",
+      "type": "frontend",
+      "label": "screens.py",
+      "sublabel": "menu / battle / over",
+      "pos": [
+        540,
+        480
+      ],
+      "size": [
+        130,
+        60
+      ]
+    },
+    {
+      "id": "render",
+      "type": "frontend",
+      "label": "render.py",
+      "sublabel": "boards, HUD, meters",
+      "pos": [
+        540,
+        620
+      ],
+      "size": [
+        130,
+        60
+      ]
+    },
+    {
+      "id": "effects",
+      "type": "frontend",
+      "label": "effects.py",
+      "sublabel": "flash, shake, pulse",
+      "pos": [
+        290,
+        620
+      ],
+      "size": [
+        130,
+        60
+      ]
+    },
+    {
+      "id": "placements",
+      "type": "backend",
+      "label": "placements.py",
+      "sublabel": "BFS reachable moves",
+      "pos": [
+        540,
+        190
+      ],
+      "size": [
+        130,
+        60
+      ]
+    },
+    {
+      "id": "evaluate",
+      "type": "backend",
+      "label": "evaluate.py",
+      "sublabel": "weighted heuristic",
+      "pos": [
+        790,
+        50
+      ],
+      "size": [
+        130,
+        60
+      ]
+    },
+    {
+      "id": "bot",
+      "type": "backend",
+      "label": "bot.py",
+      "sublabel": "~2.5 pieces/sec",
+      "pos": [
+        790,
+        190
+      ],
+      "size": [
+        130,
+        60
+      ]
+    },
+    {
+      "id": "match",
+      "type": "backend",
+      "label": "match.py",
+      "sublabel": "rounds, best-of-N",
+      "pos": [
+        790,
+        340
+      ],
+      "size": [
+        130,
+        60
+      ],
+      "tag": "garbage routing"
+    },
+    {
+      "id": "attack",
+      "type": "backend",
+      "label": "attack.py",
+      "sublabel": "table, combo, B2B",
+      "pos": [
+        790,
+        480
+      ],
+      "size": [
+        130,
+        60
+      ]
+    },
+    {
+      "id": "player",
+      "type": "backend",
+      "label": "player.py x2",
+      "sublabel": "human + bot boards",
+      "pos": [
+        1040,
+        340
+      ],
+      "size": [
+        130,
+        60
+      ],
+      "tag": "SRS, lock, T-spin"
+    },
+    {
+      "id": "bag",
+      "type": "backend",
+      "label": "bag.py",
+      "sublabel": "seedable 7-bag",
+      "pos": [
+        1040,
+        480
+      ],
+      "size": [
+        130,
+        60
+      ]
+    },
+    {
+      "id": "board",
+      "type": "database",
+      "label": "board.py",
+      "sublabel": "10x40 grid, clears",
+      "pos": [
+        1290,
+        340
+      ],
+      "size": [
+        130,
+        60
+      ]
+    },
+    {
+      "id": "pieces",
+      "type": "database",
+      "label": "pieces.py",
+      "sublabel": "tetrominoes + kicks",
+      "pos": [
+        1290,
+        480
+      ],
+      "size": [
+        130,
+        60
+      ]
+    }
+  ],
+  "boundaries": [
+    {
+      "kind": "region",
+      "label": "Bot (same action API as a human)",
+      "wraps": [
+        "bot",
+        "placements",
+        "evaluate"
+      ]
+    },
+    {
+      "kind": "region",
+      "label": "Engine (pure Python, no pygame)",
+      "wraps": [
+        "match",
+        "attack",
+        "player",
+        "bag",
+        "board",
+        "pieces"
+      ]
+    }
+  ],
+  "connections": [
+    {
+      "id": "human-to-input",
+      "from": "human",
+      "to": "input",
+      "label": "key events",
+      "variant": "emphasis"
+    },
+    {
+      "id": "settings-to-input",
+      "from": "settings",
+      "to": "input",
+      "label": "keys",
+      "variant": "dashed",
+      "fromSide": "bottom",
+      "toSide": "top"
+    },
+    {
+      "id": "input-to-main",
+      "from": "input",
+      "to": "main",
+      "label": "actions"
+    },
+    {
+      "id": "main-to-match",
+      "from": "main",
+      "to": "match",
+      "label": "tick(actions)",
+      "variant": "emphasis"
+    },
+    {
+      "id": "placements-to-bot",
+      "from": "placements",
+      "to": "bot",
+      "label": "placements"
+    },
+    {
+      "id": "evaluate-to-bot",
+      "from": "evaluate",
+      "to": "bot",
+      "label": "score",
+      "fromSide": "bottom",
+      "toSide": "top"
+    },
+    {
+      "id": "bot-to-match",
+      "from": "bot",
+      "to": "match",
+      "label": "bot actions",
+      "fromSide": "bottom",
+      "toSide": "top"
+    },
+    {
+      "id": "match-to-player",
+      "from": "match",
+      "to": "player",
+      "label": "step x2",
+      "variant": "emphasis"
+    },
+    {
+      "id": "match-to-attack",
+      "from": "match",
+      "to": "attack",
+      "label": "cancel",
+      "variant": "dashed",
+      "fromSide": "bottom",
+      "toSide": "top"
+    },
+    {
+      "id": "player-to-board",
+      "from": "player",
+      "to": "board",
+      "label": "grid ops"
+    },
+    {
+      "id": "player-to-bag",
+      "from": "player",
+      "to": "bag",
+      "label": "next piece",
+      "variant": "dashed",
+      "fromSide": "bottom",
+      "toSide": "top"
+    },
+    {
+      "id": "board-to-pieces",
+      "from": "board",
+      "to": "pieces",
+      "label": "kicks",
+      "variant": "dashed",
+      "fromSide": "bottom",
+      "toSide": "top"
+    },
+    {
+      "id": "main-to-screens",
+      "from": "main",
+      "to": "screens",
+      "label": "events",
+      "fromSide": "bottom",
+      "toSide": "top"
+    },
+    {
+      "id": "screens-to-render",
+      "from": "screens",
+      "to": "render",
+      "label": "draw",
+      "fromSide": "bottom",
+      "toSide": "top"
+    },
+    {
+      "id": "effects-to-render",
+      "from": "effects",
+      "to": "render",
+      "label": "fx",
+      "variant": "dashed"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Shell",
+      "items": [
+        "pygame only draws and reads keys",
+        "main.py runs a fixed 60 Hz timestep",
+        "settings.json is hand-edited, read at startup"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "Engine",
+      "items": [
+        "No pygame import, deterministic by seed",
+        "match.py links two players and routes garbage",
+        "attack table lives in one rebalanceable place"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "Bot",
+      "items": [
+        "Uses the same actions as a human",
+        "BFS placements, heuristic score, 2-piece lookahead",
+        "Paced to ~2.5 pieces/sec so it is beatable"
+      ]
+    }
+  ]
+}
