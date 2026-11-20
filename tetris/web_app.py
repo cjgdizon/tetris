@@ -1,37 +1,20 @@
 """Browser runtime adapter for Tetris Battle (Pyodide + Canvas, no pygame)."""
 import json
-import time
 from collections.abc import Callable, Iterable
 
-from tetris.bot.bot import Bot
 from tetris.engine.board import HEIGHT, VISIBLE, WIDTH
 from tetris.engine.pieces import SHAPES
 from tetris.engine.player import Action, Player
-from tetris.input import InputHandler
-from tetris.settings import DEFAULT_KEYS, Settings, guide_layout, load_settings
-from tetris.ui.effects import Effects
-from tetris.ui.screens import Flow, State
+from tetris.session import TICK, GameSession
+from tetris.settings import DEFAULT_KEYS, Settings, guide_layout
+from tetris.ui.screens import State
 
-TICK = 1 / 60
 _FLOW_KEYS = frozenset({"enter", "escape", "q"})
 
 
 def _normalize_keymap(keys: dict[Action, list[str]]) -> dict[Action, list[str]]:
     source = keys or DEFAULT_KEYS
     return {action: [k.strip().lower() for k in names] for action, names in source.items()}
-
-
-def _overlay(flow: Flow) -> list[str] | None:
-    m = flow.match
-    if flow.state is State.PAUSED:
-        return ["PAUSED", "Esc: resume    Q: menu"]
-    if flow.state is State.ROUND_END and m is not None:
-        title = {None: "DRAW - ROUND REPLAYS", 0: "YOU WIN THE ROUND", 1: "BOT WINS THE ROUND"}[m.round_winner]
-        return [title, "Enter: next round"]
-    if flow.state is State.MATCH_OVER and m is not None:
-        title = "YOU WIN THE MATCH" if m.match_winner == 0 else "BOT WINS THE MATCH"
-        return [title, "Enter: rematch    Esc: menu"]
-    return None
 
 
 def _player_snapshot(player: Player, flash_rows: list[int], pulse: float) -> dict:
@@ -59,13 +42,10 @@ class WebSession:
         seed: int | None = None,
         opponent: Callable[[Player], list[Action]] | None = None,
     ):
-        self.settings = settings or load_settings()
+        self.session = GameSession(settings=settings, seed=seed, opponent=opponent)
+        self.settings = self.session.settings
+        self.flow = self.session.flow
         self.keymap = _normalize_keymap(self.settings.keys)
-        self.handler = InputHandler(self.settings.handling)
-        self.flow = Flow(self.settings, seed=int(time.time()) if seed is None else seed)
-        self.effects = Effects(seed=1)
-        self._opponent = opponent or Bot(pps=self.settings.bot_pps).actions
-        self._acc = 0.0
         self._pending_presses: set[str] = set()
 
     def on_key_down(self, key: str) -> None:
@@ -73,38 +53,24 @@ class WebSession:
         if self.flow.state is State.MENU and name == "escape":
             return
         if name in _FLOW_KEYS:
-            was_battle = self.flow.state is State.BATTLE
-            self.flow.on_key(name)
-            self.flow.quit = False
-            if was_battle != (self.flow.state is State.BATTLE):
-                self.handler.reset()
+            if self.session.on_flow_key(name):
                 self._pending_presses.clear()
+            self.flow.quit = False
             return
         if self.flow.state is State.BATTLE:
             self._pending_presses.add(name)
 
     def step(self, dt_sec: float, held_keys: Iterable[str] = ()) -> dict:
-        dt = min(max(float(dt_sec), 0.0), 5 * TICK)
-        self._acc = min(self._acc + dt, 5 * TICK)
         pressed = {k.strip().lower() for k in held_keys}
-        while self._acc >= TICK:
-            self._acc -= TICK
-            if self.flow.state is State.BATTLE:
-                tick_pressed = pressed | self._pending_presses
-                self._pending_presses.clear()
-                held = {action for action, names in self.keymap.items() if any(n in tick_pressed for n in names)}
-                match = self.flow.match
-                human = self.handler.update(held, match.players[0].gravity_frames)
-                match.step(human, self._opponent(match.players[1]))
-                self.effects.on_locks(match.last_locks)
-                self.effects.on_pending(tuple(sum(b.lines for b in p.pending) for p in match.players))
-                self.flow.update()
-                if self.flow.state is not State.BATTLE:
-                    self.handler.reset()
-                    self._pending_presses.clear()
-            else:
-                self._pending_presses.clear()
-            self.effects.update()
+
+        def held_for_tick() -> set[Action]:
+            tick_pressed = pressed | self._pending_presses
+            self._pending_presses.clear()
+            return {action for action, names in self.keymap.items() if any(n in tick_pressed for n in names)}
+
+        self.session.step(dt_sec, held_for_tick)
+        if self.flow.state is not State.BATTLE:
+            self._pending_presses.clear()
         return self.snapshot()
 
     def tick_json(self, dt_sec: float, held_keys_json: str = "[]") -> str:
@@ -113,15 +79,17 @@ class WebSession:
 
     def snapshot(self) -> dict:
         match = self.flow.match
+        effects = self.session.effects
+        overlay = self.flow.overlay()
         players = (
-            [_player_snapshot(p, self.effects.flash_rows(i), self.effects.meter_pulse(i)) for i, p in enumerate(match.players)]
+            [_player_snapshot(p, effects.flash_rows(i), effects.meter_pulse(i)) for i, p in enumerate(match.players)]
             if match is not None
             else []
         )
         return {
             "state": self.flow.state.name,
-            "overlay": _overlay(self.flow),
-            "shake": list(self.effects.shake_offset()),
+            "overlay": list(overlay) if overlay is not None else None,
+            "shake": list(effects.shake_offset()),
             "level": match.level if match is not None else 1,
             "best_of": match.best_of if match is not None else self.settings.best_of,
             "wins": list(match.wins) if match is not None else [0, 0],

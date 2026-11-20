@@ -4,6 +4,7 @@ from pathlib import Path
 
 from tetris.engine.board import HEIGHT, VISIBLE, WIDTH
 from tetris.engine.pieces import KINDS
+from tetris.engine.player import Action
 from tetris.input import Handling
 from tetris.settings import Settings, load_settings
 from tetris.ui.screens import State
@@ -99,8 +100,6 @@ def test_shapes_json_contains_all_tetrominoes():
 
 
 def test_guide_json_reflects_session_keys():
-    from tetris.engine.player import Action
-
     keys = {**load_settings(Path("__none__.json")).keys, Action.HOLD: ["Left Shift"]}
     session = _make_session(keys=keys)
     guide = json.loads(session.guide_json())
@@ -108,7 +107,9 @@ def test_guide_json_reflects_session_keys():
     hold_row = next(r for r in guide["rows"] if r["action"] == "HOLD")
     assert hold_row["cap"] == "LSHF"
     assert hold_row["keys"] == ["left shift"]
-    assert guide["rows"][-1] == {"action": None, "keys": ["escape"], "cap": "ESC", "desc": "Pause"}
+    assert guide["rows"][-1] == {
+        "action": None, "keys": ["escape"], "cap": "ESC", "desc": "Pause", "x": 4, "y": 264, "h": 26,
+    }
 
 
 def test_held_keys_input_and_dt_clamping():
@@ -143,14 +144,17 @@ def test_index_html_py_files_exist():
         for line in html[start:end].splitlines()
         if line.strip().startswith('"')
     ]
-    assert "tetris/web_app.py" in paths
+    assert set(paths) == {
+        p.as_posix()
+        for p in Path("tetris").rglob("*.py")
+        if p.as_posix() not in {"tetris/main.py", "tetris/ui/render.py"}
+    }
     for rel in paths:
         assert Path(rel).is_file(), f"Missing file referenced by index.html: {rel}"
 
 
 def test_round_end_match_over_overlays_and_key_normalization():
     keys = {**load_settings(Path("__none__.json")).keys}
-    from tetris.engine.player import Action
 
     keys[Action.HOLD] = ["Left Shift"]
     session = _make_session(seed=5, keys=keys)

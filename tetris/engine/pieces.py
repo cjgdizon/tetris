@@ -1,6 +1,8 @@
 """Tetromino shapes, SRS kick data and the immutable Piece pose."""
 from dataclasses import dataclass
+from typing import Literal
 
+Kind = Literal["I", "O", "T", "S", "Z", "J", "L"]
 KINDS = "IOTSZJL"
 SPAWN = (3, 18)
 
@@ -61,7 +63,7 @@ KICKS = {"JLSTZ": _down(_JLSTZ_UP), "I": _down(_I_UP), "O": _O_KICKS}
 
 @dataclass(frozen=True)
 class Piece:
-    kind: str
+    kind: Kind
     x: int
     y: int
     rot: int = 0

@@ -1,6 +1,10 @@
 """T-spin classification using the 3-corner rule."""
+from typing import Literal
+
 from tetris.engine.board import Board
 from tetris.engine.pieces import Piece
+
+TSpin = Literal["none", "mini", "full"]
 
 # Corner offsets from the T center: (up-left, up-right, down-left, down-right)
 _CORNERS = [(-1, -1), (1, -1), (-1, 1), (1, 1)]
@@ -8,7 +12,7 @@ _CORNERS = [(-1, -1), (1, -1), (-1, 1), (1, 1)]
 _FRONT = {0: (0, 1), 1: (1, 3), 2: (2, 3), 3: (0, 2)}
 
 
-def tspin_kind(board: Board, piece: Piece, rotated: bool, kick_index: int) -> str:
+def tspin_kind(board: Board, piece: Piece, rotated: bool, kick_index: int) -> TSpin:
     """Return "none", "mini" or "full" for a T in its final (unlocked) pose."""
     if piece.kind != "T" or not rotated:
         return "none"

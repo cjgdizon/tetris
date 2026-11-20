@@ -86,6 +86,7 @@
     const PY_FILES = [
       "tetris/__init__.py",
       "tetris/input.py",
+      "tetris/session.py",
       "tetris/settings.py",
       "tetris/web_app.py",
       "tetris/bot/__init__.py",
@@ -204,7 +205,7 @@
         ctx.strokeStyle = COLORS[player.ghost_kind];
         ctx.lineWidth = 2;
         for (const [gx, gy] of player.ghost) {
-          ctx.strokeRect(x0 + gx * cell + 1, y0 + gy * cell + 1, cell - 3, cell - 3);
+          ctx.strokeRect(x0 + gx * cell, y0 + gy * cell, cell - 1, cell - 1);
         }
       }
 
@@ -221,7 +222,7 @@
       ctx.fillText("HOLD", x0 - 122, y0 - 22);
       ctx.strokeStyle = GRID;
       ctx.lineWidth = 2;
-      ctx.strokeRect(x0 - 121, y0 + 1, 78, 78);
+      ctx.strokeRect(x0 - 122, y0, 80, 80);
       if (player.hold) {
         drawMini(player.hold, x0 - 122, y0, 16, 5);
       }
@@ -276,34 +277,27 @@
       ctx.textBaseline = "top";
       ctx.fillText("CONTROLS", gx, gy);
 
-      const slots = {
-        up: [gx + 52, gy + 28],
-        left: [gx + 4, gy + 62],
-        down: [gx + 52, gy + 62],
-        right: [gx + 100, gy + 62],
-      };
       for (const entry of guide.cluster) {
-        const [kx, ky] = slots[entry.slot];
-        drawKeycap(kx, ky, 44, 28, entry.label, isHeld(entry));
+        drawKeycap(gx + entry.x, gy + entry.y, entry.w, entry.h, entry.label, isHeld(entry));
       }
 
       ctx.fillStyle = GUIDE_TEXT;
       ctx.font = "12px sans-serif";
       ctx.textAlign = "center";
       ctx.textBaseline = "top";
-      ctx.fillText("Move / Soft / CW", gx + 74, gy + 96);
+      ctx.fillText(guide.caption.text, gx + guide.caption.x, gy + guide.caption.y);
 
-      for (let i = 0; i < guide.rows.length; i++) {
-        const row = guide.rows[i];
-        const ry = gy + 128 + i * 34;
+      for (const row of guide.rows) {
+        const rx = gx + row.x;
+        const ry = gy + row.y;
         ctx.font = "13px sans-serif";
         const capW = Math.max(38, Math.ceil(ctx.measureText(row.cap).width) + 14);
-        drawKeycap(gx + 4, ry, capW, 26, row.cap, isHeld(row));
+        drawKeycap(rx, ry, capW, row.h, row.cap, isHeld(row));
         ctx.fillStyle = TEXT;
         ctx.font = "14px sans-serif";
         ctx.textAlign = "left";
         ctx.textBaseline = "middle";
-        ctx.fillText(row.desc, gx + 4 + capW + 10, ry + 13);
+        ctx.fillText(row.desc, rx + capW + 10, ry + row.h / 2);
       }
     }
 

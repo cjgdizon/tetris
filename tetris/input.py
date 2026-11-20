@@ -1,11 +1,11 @@
 """Frame-based key handling: DAS/ARR for movement, SDF-paced soft drop, edge-triggered keys."""
 from dataclasses import dataclass
 
+from tetris.engine.board import WIDTH
 from tetris.engine.player import Action
 
 _DIRS = (Action.LEFT, Action.RIGHT)
 _EDGE_ORDER = (Action.CCW, Action.CW, Action.HOLD)  # HARD is emitted last
-_INSTANT_SLIDE = 10
 
 
 @dataclass
@@ -47,7 +47,7 @@ class InputHandler:
                 out.append(d)
             elif c >= self.h.das:
                 if self.h.arr == 0:
-                    out.extend([d] * _INSTANT_SLIDE)
+                    out.extend([d] * WIDTH)
                 elif (c - self.h.das) % self.h.arr == 0:
                     out.append(d)
 

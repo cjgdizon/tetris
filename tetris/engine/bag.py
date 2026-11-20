@@ -1,4 +1,6 @@
 """Seedable 7-bag randomizer."""
+from collections import deque
+from itertools import islice
 import random
 
 from tetris.engine.pieces import KINDS
@@ -7,7 +9,7 @@ from tetris.engine.pieces import KINDS
 class Bag:
     def __init__(self, seed: int):
         self._rng = random.Random(seed)
-        self._queue: list[str] = []
+        self._queue: deque[str] = deque()
 
     def _fill(self, n: int) -> None:
         while len(self._queue) < n:
@@ -17,8 +19,8 @@ class Bag:
 
     def next(self) -> str:
         self._fill(1)
-        return self._queue.pop(0)
+        return self._queue.popleft()
 
     def peek(self, n: int) -> list[str]:
         self._fill(n)
-        return self._queue[:n]
+        return list(islice(self._queue, n))

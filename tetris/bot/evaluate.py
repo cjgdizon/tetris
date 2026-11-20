@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from tetris.engine.board import HEIGHT, WIDTH, Board
 
 
-@dataclass
+@dataclass(frozen=True)
 class Weights:
     holes: float = -8.0
     bumpiness: float = -0.4
@@ -69,14 +69,15 @@ def evaluate(board: Board, lines: int, tspin: str, attack: int, combo: int, b2b:
     """Score a board state **after** a lock and its line clears."""
     w = weights
     h = board.heights()
-    top = HEIGHT - max(h)
+    max_h = max(h)
+    top = HEIGHT - max_h
     holes, transitions = _holes_and_transitions(board, top)
     bumpiness = sum(abs(h[i] - h[i + 1]) for i in range(WIDTH - 1))
     score = (
         w.holes * holes
         + w.bumpiness * bumpiness
         + w.aggregate_height * sum(h)
-        + w.max_height_over_10 * max(0, max(h) - 10)
+        + w.max_height_over_10 * max(0, max_h - 10)
         + w.row_transitions * transitions
         + w.well * _well_depth(h)
         + w.attack * attack

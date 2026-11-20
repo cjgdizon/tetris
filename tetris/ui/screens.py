@@ -13,6 +13,14 @@ class State(Enum):
     MATCH_OVER = auto()
 
 
+_STATE_TRANSITIONS = {
+    (State.BATTLE, "escape"): State.PAUSED,
+    (State.PAUSED, "escape"): State.BATTLE,
+    (State.PAUSED, "q"): State.MENU,
+    (State.MATCH_OVER, "escape"): State.MENU,
+}
+
+
 class Flow:
     def __init__(self, settings: Settings, seed: int = 0):
         self.settings = settings
@@ -27,31 +35,33 @@ class Flow:
         self.state = State.BATTLE
 
     def on_key(self, name: str) -> None:
-        s = self.state
-        if s is State.MENU:
-            if name == "enter":
-                self._new_match()
-            elif name == "escape":
-                self.quit = True
-        elif s is State.BATTLE:
-            if name == "escape":
-                self.state = State.PAUSED
-        elif s is State.PAUSED:
-            if name == "escape":
-                self.state = State.BATTLE
-            elif name == "q":
-                self.state = State.MENU
-        elif s is State.ROUND_END:
-            if name == "enter":
-                self.match.next_round()
-                self.state = State.BATTLE
-        elif s is State.MATCH_OVER:
-            if name == "enter":
-                self._new_match()
-            elif name == "escape":
-                self.state = State.MENU
+        nxt = _STATE_TRANSITIONS.get((self.state, name))
+        if nxt is not None:
+            self.state = nxt
+        elif (self.state, name) in ((State.MENU, "enter"), (State.MATCH_OVER, "enter")):
+            self._new_match()
+        elif self.state is State.MENU and name == "escape":
+            self.quit = True
+        elif self.state is State.ROUND_END and name == "enter" and self.match is not None:
+            self.match.next_round()
+            self.state = State.BATTLE
 
     def update(self) -> None:
         """Call after each simulation tick."""
-        if self.state is State.BATTLE and self.match.round_over:
+        if self.state is State.BATTLE and self.match is not None and self.match.round_over:
             self.state = State.MATCH_OVER if self.match.match_winner is not None else State.ROUND_END
+
+    def overlay(self) -> tuple[str, str] | None:
+        """Title and hint for the current overlay, or None while the battle is live."""
+        m = self.match
+        if m is None:
+            return None
+        if self.state is State.PAUSED:
+            return "PAUSED", "Esc: resume    Q: menu"
+        if self.state is State.ROUND_END:
+            title = {None: "DRAW - ROUND REPLAYS", 0: "YOU WIN THE ROUND", 1: "BOT WINS THE ROUND"}[m.round_winner]
+            return title, "Enter: next round"
+        if self.state is State.MATCH_OVER:
+            title = "YOU WIN THE MATCH" if m.match_winner == 0 else "BOT WINS THE MATCH"
+            return title, "Enter: rematch    Esc: menu"
+        return None

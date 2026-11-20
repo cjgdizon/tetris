@@ -15,7 +15,8 @@ class Board:
         b = cls()
         top = HEIGHT - len(rows)
         for i, row in enumerate(rows):
-            assert len(row) == WIDTH, row
+            if len(row) != WIDTH:
+                raise ValueError(f"row {i} has length {len(row)}, expected {WIDTH}: {row!r}")
             for x, ch in enumerate(row):
                 if ch != ".":
                     b.cells[top + i][x] = "X"
@@ -52,9 +53,14 @@ class Board:
             self.cells[y][x] = piece.kind
 
     def clear_lines(self) -> list[int]:
-        full = [y for y, row in enumerate(self.cells) if all(c is not None for c in row)]
+        full: list[int] = []
+        keep: list[list[str | None]] = []
+        for y, row in enumerate(self.cells):
+            if all(c is not None for c in row):
+                full.append(y)
+            else:
+                keep.append(row)
         if full:
-            keep = [row for y, row in enumerate(self.cells) if y not in full]
             self.cells = [[None] * WIDTH for _ in full] + keep
         return full
 

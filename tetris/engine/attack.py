@@ -1,6 +1,10 @@
 """Attack table, combo/back-to-back and garbage batch handling."""
 from dataclasses import dataclass
 
+from tetris.engine.board import Board
+from tetris.engine.pieces import Piece
+from tetris.engine.tspin import TSpin
+
 COMBO_TABLE = [0, 0, 1, 1, 1, 2, 2, 3, 3, 4, 4, 4, 5]
 _BASE = {1: 0, 2: 1, 3: 2, 4: 4}
 _TSPIN_FULL = {1: 2, 2: 4, 3: 6}
@@ -58,3 +62,23 @@ def land(pending: list[Batch], limit: int = 8) -> list[Batch]:
             b.lines -= limit
             limit = 0
     return out
+
+
+def resolve_clear(
+    board: Board,
+    piece: Piece,
+    tspin: TSpin,
+    b2b: bool,
+    combo: int,
+    pending: list[Batch] | None = None,
+) -> tuple[bool, int, list[int], int, int, bool]:
+    """Lock `piece` on `board`, clear lines, and return (b2b, combo, rows, raw, sent, perfect)."""
+    board.lock(piece)
+    rows = board.clear_lines()
+    lines = len(rows)
+    perfect = lines > 0 and board.is_empty()
+    raw = attack_lines(lines, tspin, b2b, combo, perfect)
+    sent = cancel(pending, raw) if pending is not None else raw
+    if lines > 0:
+        return is_difficult(lines, tspin), combo + 1, rows, raw, sent, perfect
+    return b2b, 0, rows, raw, sent, perfect

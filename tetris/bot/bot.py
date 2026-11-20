@@ -1,12 +1,14 @@
 """The bot: pick a placement (current piece + hold, short lookahead), then play it at a human pace."""
+from collections import deque
 import math
 
 from tetris.bot.evaluate import Weights, evaluate
 from tetris.bot.placements import drop_placements, find_placements
-from tetris.engine.attack import attack_lines, is_difficult
+from tetris.engine.attack import resolve_clear
 from tetris.engine.board import Board
 from tetris.engine.pieces import Piece
 from tetris.engine.player import Action, Player
+from tetris.engine.tspin import TSpin
 
 BEAM = 5
 FPS = 60
@@ -18,23 +20,19 @@ class Bot:
         self.w = weights or Weights()
         self._player: Player | None = None  # the player the current plan was made for
         self._for: int | None = None  # ...and its pieces_locked at that time
-        self._chunks: list[list[Action]] = []
+        self._chunks: deque[list[Action]] = deque()
         self._wait = 0.0
         self._gap = 1.0
         self._start: Piece | None = None
         self._first = True
 
     # -- evaluation ------------------------------------------------------
-    def _after(self, board: Board, piece: Piece, tspin: str, b2b: bool, combo: int, pending: int):
+    def _after(self, board: Board, piece: Piece, tspin: TSpin, b2b: bool, combo: int, pending: int):
         b = board.copy()
-        b.lock(piece)
-        lines = len(b.clear_lines())
-        perfect = lines > 0 and b.is_empty()
-        attack = attack_lines(lines, tspin, b2b, combo, perfect)
+        new_b2b, new_combo, rows, attack, _, _ = resolve_clear(b, piece, tspin, b2b, combo)
+        lines = len(rows)
         if lines:
-            new_b2b, new_combo, pending = is_difficult(lines, tspin), combo + 1, max(0, pending - attack)
-        else:
-            new_b2b, new_combo = b2b, 0
+            pending = max(0, pending - attack)
         value = evaluate(b, lines, tspin, attack, new_combo, new_b2b, pending, self.w)
         return b, value, new_b2b, new_combo, pending
 
@@ -78,7 +76,7 @@ class Bot:
                 chunks.append([a])
         budget = FPS / self.pps
         self._gap = budget / len(chunks)  # fractional, so a piece takes exactly `budget` frames
-        self._chunks = chunks
+        self._chunks = deque(chunks)
         self._wait = self._gap
         self._start = player.piece
         self._first = True
@@ -87,7 +85,7 @@ class Bot:
 
     def actions(self, player: Player) -> list[Action]:
         """Call once per frame; returns the actions to apply this frame."""
-        if not player.alive or player.piece is None:
+        if not player.alive:
             return []
         if self._player is not player or self._for != player.pieces_locked:
             self._plan(player)
@@ -101,4 +99,4 @@ class Bot:
             self._wait = 0.0
         self._first = False
         self._wait += self._gap
-        return self._chunks.pop(0)
+        return self._chunks.popleft()

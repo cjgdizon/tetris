@@ -73,18 +73,19 @@ def test_format_key_lookup_and_fallback():
 def test_guide_layout_defaults_and_custom_keys():
     layout = guide_layout(DEFAULT_KEYS)
     assert json.loads(json.dumps(layout)) == layout
-    assert [(c["slot"], c["action"], c["label"]) for c in layout["cluster"]] == [
-        ("up", "CW", "^"),
-        ("left", "LEFT", "<-"),
-        ("down", "SOFT", "v"),
-        ("right", "RIGHT", "->"),
+    assert [(c["slot"], c["action"], c["label"], c["x"], c["y"], c["w"], c["h"]) for c in layout["cluster"]] == [
+        ("up", "CW", "^", 52, 28, 44, 28),
+        ("left", "LEFT", "<-", 4, 62, 44, 28),
+        ("down", "SOFT", "v", 52, 62, 44, 28),
+        ("right", "RIGHT", "->", 100, 62, 44, 28),
     ]
-    assert [(r["action"], r["cap"], r["desc"]) for r in layout["rows"]] == [
-        ("CCW", "Z", "Rotate CCW"),
-        ("CW", "^/X", "Rotate CW"),
-        ("HOLD", "C", "Hold"),
-        ("HARD", "SPACE", "Hard drop"),
-        (None, "ESC", "Pause"),
+    assert layout["caption"] == {"text": "Move / Soft / CW", "x": 74, "y": 96}
+    assert [(r["action"], r["cap"], r["desc"], r["x"], r["y"], r["h"]) for r in layout["rows"]] == [
+        ("CCW", "Z", "Rotate CCW", 4, 128, 26),
+        ("CW", "^/X", "Rotate CW", 4, 162, 26),
+        ("HOLD", "C", "Hold", 4, 196, 26),
+        ("HARD", "SPACE", "Hard drop", 4, 230, 26),
+        (None, "ESC", "Pause", 4, 264, 26),
     ]
     assert layout["rows"][-1]["keys"] == ["escape"]
 

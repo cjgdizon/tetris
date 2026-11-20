@@ -23,7 +23,6 @@ COLORS = {
     "I": (0, 200, 220), "O": (230, 200, 40), "T": (160, 70, 200), "S": (70, 200, 80),
     "Z": (220, 60, 60), "J": (60, 90, 220), "L": (230, 140, 40), "G": GARBAGE, "X": GARBAGE,
 }
-FIELD_W = 10
 
 
 def _cell(surface, color, px, py, size):
@@ -93,34 +92,29 @@ def _draw_keycap(surface: pygame.Surface, rect: pygame.Rect, label: str, font: p
 
 def _draw_guide(surface: pygame.Surface, offset: tuple[int, int],
                 keys: dict[Action, list[str]] | None, held: Collection[Action] | None) -> None:
-    ox, oy = offset
+    gx, gy = 20 + offset[0], 224 + offset[1]
     guide = guide_layout(DEFAULT_KEYS if keys is None else keys)
     label_font = pygame.font.Font(None, 20)
     cap_font = pygame.font.Font(None, 20)
     caption_font = pygame.font.Font(None, 18)
 
-    surface.blit(label_font.render("CONTROLS", True, TEXT), (20 + ox, 224 + oy))
-    slots = {
-        "up": (72 + ox, 252 + oy),
-        "left": (24 + ox, 286 + oy),
-        "down": (72 + ox, 286 + oy),
-        "right": (120 + ox, 286 + oy),
-    }
+    surface.blit(label_font.render("CONTROLS", True, TEXT), (gx, gy))
     for entry in guide["cluster"]:
-        kx, ky = slots[entry["slot"]]
         active = bool(held and Action[entry["action"]] in held)
-        _draw_keycap(surface, pygame.Rect(kx, ky, 44, 28), entry["label"], cap_font, active)
+        rect = pygame.Rect(gx + entry["x"], gy + entry["y"], entry["w"], entry["h"])
+        _draw_keycap(surface, rect, entry["label"], cap_font, active)
 
-    caption = caption_font.render("Move / Soft / CW", True, GUIDE_TEXT)
-    surface.blit(caption, (94 + ox - caption.get_width() // 2, 320 + oy))
+    cap_spec = guide["caption"]
+    caption = caption_font.render(cap_spec["text"], True, GUIDE_TEXT)
+    surface.blit(caption, (gx + cap_spec["x"] - caption.get_width() // 2, gy + cap_spec["y"]))
 
-    for i, row in enumerate(guide["rows"]):
-        ry = 352 + oy + i * 34
+    for row in guide["rows"]:
+        rx, ry, rh = gx + row["x"], gy + row["y"], row["h"]
         cap_w = max(38, cap_font.size(row["cap"])[0] + 14)
         active = bool(row["action"] is not None and held and Action[row["action"]] in held)
-        _draw_keycap(surface, pygame.Rect(24 + ox, ry, cap_w, 26), row["cap"], cap_font, active)
+        _draw_keycap(surface, pygame.Rect(rx, ry, cap_w, rh), row["cap"], cap_font, active)
         desc = label_font.render(row["desc"], True, TEXT)
-        surface.blit(desc, (24 + ox + cap_w + 10, ry + (26 - desc.get_height()) // 2))
+        surface.blit(desc, (rx + cap_w + 10, ry + (rh - desc.get_height()) // 2))
 
 
 def draw_match(surface: pygame.Surface, match: Match, offset: tuple[int, int] = (0, 0),
@@ -136,22 +130,6 @@ def draw_match(surface: pygame.Surface, match: Match, offset: tuple[int, int] = 
     _draw_guide(surface, offset, keys, held)
     info = f"Level {match.level}   Best of {match.best_of}"
     surface.blit(font.render(info, True, TEXT), (560 + ox, 16 + oy))
-
-
-def overlay_text(flow) -> tuple[str, str] | None:
-    """Title and hint for the current overlay, or None while the battle is live."""
-    from tetris.ui.screens import State  # local import keeps render free of a screens cycle
-
-    m = flow.match
-    if flow.state is State.PAUSED:
-        return "PAUSED", "Esc: resume    Q: menu"
-    if flow.state is State.ROUND_END:
-        title = {None: "DRAW - ROUND REPLAYS", 0: "YOU WIN THE ROUND", 1: "BOT WINS THE ROUND"}[m.round_winner]
-        return title, "Enter: next round"
-    if flow.state is State.MATCH_OVER:
-        title = "YOU WIN THE MATCH" if m.match_winner == 0 else "BOT WINS THE MATCH"
-        return title, "Enter: rematch    Esc: menu"
-    return None
 
 
 def _centered(surface, text, size, y, color=TEXT):
@@ -185,6 +163,6 @@ def draw_flow(surface: pygame.Surface, flow, effects, held: Collection[Action] |
                flash=(effects.flash_rows(0), effects.flash_rows(1)),
                pulse=(effects.meter_pulse(0), effects.meter_pulse(1)),
                keys=flow.settings.keys, held=held)
-    text = overlay_text(flow)
+    text = flow.overlay()
     if text:
         draw_overlay(surface, *text)

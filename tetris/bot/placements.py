@@ -5,14 +5,14 @@ from dataclasses import dataclass
 from tetris.engine.board import HEIGHT, Board
 from tetris.engine.pieces import SPAWN, Piece
 from tetris.engine.player import Action
-from tetris.engine.tspin import tspin_kind
+from tetris.engine.tspin import TSpin, tspin_kind
 
 
 @dataclass(frozen=True)
 class Placement:
     piece: Piece  # final grounded pose
     actions: tuple[Action, ...]  # path from spawn, ending with HARD
-    tspin: str
+    tspin: TSpin
 
 
 def find_placements(board: Board, kind: str, start: Piece | None = None) -> list[Placement]:
@@ -39,8 +39,7 @@ def find_placements(board: Board, kind: str, start: Piece | None = None) -> list
         x, y, rot, kick = state
         if not board.fits(kind, x, y + 1, rot):
             piece = Piece(kind, x, y, rot)
-            rotated = kick is not None
-            spin = tspin_kind(board, piece, rotated, kick or 0) if rotated else "none"
+            spin = tspin_kind(board, piece, kick is not None, kick or 0)
             key = (frozenset(piece.cells()), spin)
             if key not in finals:
                 path, cur = [], state
@@ -52,9 +51,7 @@ def find_placements(board: Board, kind: str, start: Piece | None = None) -> list
             if board.fits(kind, x + dx, y, rot):
                 push((x + dx, y, rot, None), state, (action,))
         if board.fits(kind, x, y + 1, rot):
-            k = 1
-            while y + k < y_margin and board.fits(kind, x, y + k + 1, rot):
-                k += 1
+            k = max(1, y_margin - y)
             push((x, y + k, rot, None), state, (Action.SOFT,) * k)
         if kind == "O":
             continue
@@ -63,7 +60,7 @@ def find_placements(board: Board, kind: str, start: Piece | None = None) -> list
             res = board.try_rotate(cur, d)
             if res is not None:
                 np_, k = res
-                push((np_.x, np_.y, np_.rot, k if track_kick else 0), state, (action,))
+                push((np_.x, np_.y, np_.rot, k if track_kick else None), state, (action,))
     return list(finals.values())
 
 

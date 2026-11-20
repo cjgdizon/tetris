@@ -39,28 +39,39 @@ def guide_layout(keys: dict[Action, list[str]]) -> dict:
         return [k.strip().lower() for k in (keys.get(action) or DEFAULT_KEYS[action])]
 
     cluster_spec = (
-        ("up", Action.CW),
-        ("left", Action.LEFT),
-        ("down", Action.SOFT),
-        ("right", Action.RIGHT),
+        ("up", Action.CW, 52, 28),
+        ("left", Action.LEFT, 4, 62),
+        ("down", Action.SOFT, 52, 62),
+        ("right", Action.RIGHT, 100, 62),
     )
     cluster = []
-    for slot, action in cluster_spec:
+    for slot, action, x, y in cluster_spec:
         bound = norm(action)
-        cluster.append({"slot": slot, "action": action.name, "keys": bound, "label": format_key(bound[0])})
+        cluster.append({
+            "slot": slot, "action": action.name, "keys": bound, "label": format_key(bound[0]),
+            "x": x, "y": y, "w": 44, "h": 28,
+        })
 
     ccw = norm(Action.CCW)
     cw = norm(Action.CW)
     hold = norm(Action.HOLD)
     hard = norm(Action.HARD)
-    rows = [
-        {"action": Action.CCW.name, "keys": ccw, "cap": format_key(ccw[0]), "desc": "Rotate CCW"},
-        {"action": Action.CW.name, "keys": cw, "cap": "/".join(format_key(k) for k in cw), "desc": "Rotate CW"},
-        {"action": Action.HOLD.name, "keys": hold, "cap": format_key(hold[0]), "desc": "Hold"},
-        {"action": Action.HARD.name, "keys": hard, "cap": format_key(hard[0]), "desc": "Hard drop"},
-        {"action": None, "keys": ["escape"], "cap": "ESC", "desc": "Pause"},
+    row_specs = [
+        (Action.CCW.name, ccw, format_key(ccw[0]), "Rotate CCW"),
+        (Action.CW.name, cw, "/".join(format_key(k) for k in cw), "Rotate CW"),
+        (Action.HOLD.name, hold, format_key(hold[0]), "Hold"),
+        (Action.HARD.name, hard, format_key(hard[0]), "Hard drop"),
+        (None, ["escape"], "ESC", "Pause"),
     ]
-    return {"cluster": cluster, "rows": rows}
+    rows = [
+        {"action": action, "keys": k, "cap": cap, "desc": desc, "x": 4, "y": 128 + i * 34, "h": 26}
+        for i, (action, k, cap, desc) in enumerate(row_specs)
+    ]
+    return {
+        "cluster": cluster,
+        "caption": {"text": "Move / Soft / CW", "x": 74, "y": 96},
+        "rows": rows,
+    }
 
 
 @dataclass
