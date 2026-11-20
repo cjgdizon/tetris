@@ -3,7 +3,7 @@ import json
 import pytest
 
 from tetris.engine.player import Action
-from tetris.settings import load_settings
+from tetris.settings import DEFAULT_KEYS, format_key, guide_layout, load_settings
 
 
 def write(tmp_path, text):
@@ -57,3 +57,41 @@ def test_bad_numbers_raise(tmp_path, body):
 def test_best_of_must_be_odd_positive(tmp_path, n):
     with pytest.raises(ValueError, match="best_of"):
         load_settings(write(tmp_path, json.dumps({"best_of": n})))
+
+
+def test_format_key_lookup_and_fallback():
+    assert format_key("left") == "<-"
+    assert format_key("right") == "->"
+    assert format_key("down") == "v"
+    assert format_key("up") == "^"
+    assert format_key("space") == "SPACE"
+    assert format_key(" Left Shift ") == "LSHF"
+    assert format_key("right ctrl") == "RCTL"
+    assert format_key("x") == "X"
+
+
+def test_guide_layout_defaults_and_custom_keys():
+    layout = guide_layout(DEFAULT_KEYS)
+    assert json.loads(json.dumps(layout)) == layout
+    assert [(c["slot"], c["action"], c["label"]) for c in layout["cluster"]] == [
+        ("up", "CW", "^"),
+        ("left", "LEFT", "<-"),
+        ("down", "SOFT", "v"),
+        ("right", "RIGHT", "->"),
+    ]
+    assert [(r["action"], r["cap"], r["desc"]) for r in layout["rows"]] == [
+        ("CCW", "Z", "Rotate CCW"),
+        ("CW", "^/X", "Rotate CW"),
+        ("HOLD", "C", "Hold"),
+        ("HARD", "SPACE", "Hard drop"),
+        (None, "ESC", "Pause"),
+    ]
+    assert layout["rows"][-1]["keys"] == ["escape"]
+
+    custom = {**DEFAULT_KEYS, Action.HOLD: ["Left Shift"], Action.CW: ["up", "r"]}
+    custom_layout = guide_layout(custom)
+    hold_row = next(r for r in custom_layout["rows"] if r["action"] == "HOLD")
+    cw_row = next(r for r in custom_layout["rows"] if r["action"] == "CW")
+    assert hold_row["cap"] == "LSHF"
+    assert hold_row["keys"] == ["left shift"]
+    assert cw_row["cap"] == "^/R"

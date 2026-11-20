@@ -15,7 +15,52 @@ DEFAULT_KEYS: dict[Action, list[str]] = {
     Action.CCW: ["z"],
     Action.HOLD: ["c"],
 }
+_KEY_LABELS = {
+    "left": "<-",
+    "right": "->",
+    "down": "v",
+    "up": "^",
+    "space": "SPACE",
+    "left shift": "LSHF",
+    "right shift": "RSHF",
+    "left ctrl": "LCTL",
+    "right ctrl": "RCTL",
+}
 _TOP_LEVEL = {"das", "arr", "sdf", "bot_pps", "best_of", "keys"}
+
+
+def format_key(name: str) -> str:
+    clean = name.strip()
+    return _KEY_LABELS.get(clean.lower(), clean.upper())
+
+
+def guide_layout(keys: dict[Action, list[str]]) -> dict:
+    def norm(action: Action) -> list[str]:
+        return [k.strip().lower() for k in (keys.get(action) or DEFAULT_KEYS[action])]
+
+    cluster_spec = (
+        ("up", Action.CW),
+        ("left", Action.LEFT),
+        ("down", Action.SOFT),
+        ("right", Action.RIGHT),
+    )
+    cluster = []
+    for slot, action in cluster_spec:
+        bound = norm(action)
+        cluster.append({"slot": slot, "action": action.name, "keys": bound, "label": format_key(bound[0])})
+
+    ccw = norm(Action.CCW)
+    cw = norm(Action.CW)
+    hold = norm(Action.HOLD)
+    hard = norm(Action.HARD)
+    rows = [
+        {"action": Action.CCW.name, "keys": ccw, "cap": format_key(ccw[0]), "desc": "Rotate CCW"},
+        {"action": Action.CW.name, "keys": cw, "cap": "/".join(format_key(k) for k in cw), "desc": "Rotate CW"},
+        {"action": Action.HOLD.name, "keys": hold, "cap": format_key(hold[0]), "desc": "Hold"},
+        {"action": Action.HARD.name, "keys": hard, "cap": format_key(hard[0]), "desc": "Hard drop"},
+        {"action": None, "keys": ["escape"], "cap": "ESC", "desc": "Pause"},
+    ]
+    return {"cluster": cluster, "rows": rows}
 
 
 @dataclass

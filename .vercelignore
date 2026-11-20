@@ -1,0 +1,9 @@
+tests/
+docs/
+.git/
+pytest.ini
+.pytest_cache/
+__pycache__/
+**/__pycache__/
+todo.md
+*.pyc
