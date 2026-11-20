@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Tetris Battle</title>
+  <style>
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0;
+      width: 100%;
+      height: 100%;
+      background: #0e1018;
+      color: #dce0ec;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+    }
+    #stage {
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      max-width: 100vw;
+      max-height: 100vh;
+    }
+    canvas {
+      display: block;
+      max-width: 100vw;
+      max-height: 100vh;
+      width: auto;
+      height: auto;
+      aspect-ratio: 1280 / 720;
+      outline: none;
+    }
+    #status {
+      position: absolute;
+      padding: 10px 18px;
+      border-radius: 6px;
+      background: rgba(14, 16, 24, 0.9);
+      border: 1px solid #1e2230;
+      color: #dce0ec;
+      font-size: 16px;
+      text-align: center;
+    }
+    #status.error {
+      border-color: #dc3c3c;
+      color: #dc3c3c;
+    }
+    #status.hidden {
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <div id="stage">
+    <canvas id="game" width="1280" height="720" tabindex="0"></canvas>
+    <div id="status">Loading Python runtime...</div>
+  </div>
+  <script src="https://cdn.jsdelivr.net/pyodide/v0.27.5/full/pyodide.js"></script>
+  <script>
+    const BG = "#0e1018";
+    const GRID = "#1e2230";
+    const TEXT = "#dce0ec";
+    const GUIDE_TEXT = "#8a92ac";
+    const KEY_BORDER = "#3c445c";
+    const KEY_BG = "#141824";
+    const KEY_ACTIVE = "#00c8dc";
+    const KEY_ACTIVE_BG = "rgba(0, 200, 220, 0.22)";
+    const GARBAGE = "#6e6e78";
+    const METER = "#dc3c3c";
+    const COLORS = {
+      I: "#00c8dc",
+      O: "#e6c828",
+      T: "#a046c8",
+      S: "#46c850",
+      Z: "#dc3c3c",
+      J: "#3c5adc",
+      L: "#e68c28",
+      G: GARBAGE,
+      X: GARBAGE,
+    };
+
+    const PY_FILES = [
+      "tetris/__init__.py",
+      "tetris/input.py",
+      "tetris/settings.py",
+      "tetris/web_app.py",
+      "tetris/bot/__init__.py",
+      "tetris/bot/bot.py",
+      "tetris/bot/evaluate.py",
+      "tetris/bot/placements.py",
+      "tetris/engine/__init__.py",
+      "tetris/engine/attack.py",
+      "tetris/engine/bag.py",
+      "tetris/engine/board.py",
+      "tetris/engine/match.py",
+      "tetris/engine/pieces.py",
+      "tetris/engine/player.py",
+      "tetris/engine/tspin.py",
+      "tetris/ui/__init__.py",
+      "tetris/ui/effects.py",
+      "tetris/ui/screens.py",
+    ];
+
+    const CODE_MAP = {
+      ArrowLeft: "left",
+      ArrowRight: "right",
+      ArrowDown: "down",
+      ArrowUp: "up",
+      Space: "space",
+      ShiftLeft: "left shift",
+      ShiftRight: "right shift",
+      ControlLeft: "left ctrl",
+      ControlRight: "right ctrl",
+      Enter: "enter",
+      NumpadEnter: "enter",
+      Escape: "escape",
+    };
+
+    const PREVENT_KEYS = new Set(["left", "right", "down", "up", "space"]);
+
+    const canvas = document.getElementById("game");
+    const ctx = canvas.getContext("2d");
+    const statusEl = document.getElementById("status");
+
+    const heldKeys = new Set();
+    let session = null;
+    let shapes = null;
+    let guide = null;
+    let lastSnap = null;
+
+    function mapKey(e) {
+      if (CODE_MAP[e.code]) return CODE_MAP[e.code];
+      if (e.code && e.code.startsWith("Key") && e.code.length === 4) {
+        return e.code.slice(3).toLowerCase();
+      }
+      if (e.code && e.code.startsWith("Digit") && e.code.length === 6) {
+        return e.code.slice(5);
+      }
+      return e.key ? e.key.toLowerCase() : null;
+    }
+
+    function drawCell(color, px, py, size) {
+      ctx.fillStyle = color;
+      ctx.fillRect(px, py, size - 1, size - 1);
+    }
+
+    function drawMini(kind, left, top, size = 18, box = 4) {
+      const cells = shapes[kind][0];
+      let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+      for (const [x, y] of cells) {
+        if (x < minX) minX = x;
+        if (x > maxX) maxX = x;
+        if (y < minY) minY = y;
+        if (y > maxY) maxY = y;
+      }
+      const w = maxX - minX + 1;
+      const h = maxY - minY + 1;
+      const ox = left + Math.floor(((box - w) * size) / 2);
+      const oy = top + Math.floor(((box - h) * size) / 2);
+      for (const [x, y] of cells) {
+        drawCell(COLORS[kind], ox + (x - minX) * size, oy + (y - minY) * size, size);
+      }
+    }
+
+    function drawCentered(text, pxSize, y, color = TEXT) {
+      ctx.fillStyle = color;
+      ctx.font = `${pxSize}px sans-serif`;
+      ctx.textAlign = "center";
+      ctx.textBaseline = "top";
+      ctx.fillText(text, canvas.width / 2, y);
+    }
+
+    function drawPlayer(player, x0, y0) {
+      const cell = 28;
+      const fw = 10 * cell;
+      const fh = 20 * cell;
+
+      ctx.strokeStyle = GRID;
+      ctx.lineWidth = 2;
+      ctx.strokeRect(x0 - 1, y0 - 1, fw + 2, fh + 2);
+
+      for (let ry = 0; ry < 20; ry++) {
+        const row = player.board[ry];
+        for (let rx = 0; rx < 10; rx++) {
+          const kind = row[rx];
+          if (kind !== null) {
+            drawCell(COLORS[kind], x0 + rx * cell, y0 + ry * cell, cell);
+          }
+        }
+      }
+
+      if (player.flash_rows.length > 0) {
+        ctx.fillStyle = "#ffffff";
+        for (const ry of player.flash_rows) {
+          ctx.fillRect(x0, y0 + ry * cell, fw, cell);
+        }
+      }
+
+      if (player.alive && player.ghost_kind) {
+        ctx.strokeStyle = COLORS[player.ghost_kind];
+        ctx.lineWidth = 2;
+        for (const [gx, gy] of player.ghost) {
+          ctx.strokeRect(x0 + gx * cell + 1, y0 + gy * cell + 1, cell - 3, cell - 3);
+        }
+      }
+
+      if (player.piece_kind) {
+        for (const [px, py] of player.piece) {
+          drawCell(COLORS[player.piece_kind], x0 + px * cell, y0 + py * cell, cell);
+        }
+      }
+
+      ctx.fillStyle = TEXT;
+      ctx.font = "16px sans-serif";
+      ctx.textAlign = "left";
+      ctx.textBaseline = "top";
+      ctx.fillText("HOLD", x0 - 122, y0 - 22);
+      ctx.strokeStyle = GRID;
+      ctx.lineWidth = 2;
+      ctx.strokeRect(x0 - 121, y0 + 1, 78, 78);
+      if (player.hold) {
+        drawMini(player.hold, x0 - 122, y0, 16, 5);
+      }
+
+      ctx.fillStyle = TEXT;
+      ctx.fillText("NEXT", x0 + fw + 20, y0 - 22);
+      for (let i = 0; i < player.next.length; i++) {
+        drawMini(player.next[i], x0 + fw + 20, y0 + i * 70, 16, 4);
+      }
+
+      const mh = Math.min(player.pending, 20) * cell;
+      const mx = x0 - 30;
+      const width = 12 + Math.floor(6 * player.pulse);
+      ctx.strokeStyle = GRID;
+      ctx.lineWidth = 1;
+      ctx.strokeRect(mx + 0.5, y0 + 0.5, 11, fh - 1);
+      if (mh > 0) {
+        ctx.fillStyle = METER;
+        ctx.fillRect(mx - Math.floor((width - 12) / 2), y0 + fh - mh, width, mh);
+      }
+
+      if (!player.alive) {
+        ctx.fillStyle = METER;
+        ctx.font = "34px sans-serif";
+        ctx.textAlign = "left";
+        ctx.textBaseline = "top";
+        ctx.fillText("TOPPED OUT", x0 + 30, y0 + Math.floor(fh / 2));
+      }
+    }
+
+    function drawKeycap(x, y, w, h, label, active) {
+      ctx.fillStyle = active ? KEY_ACTIVE_BG : KEY_BG;
+      ctx.fillRect(x, y, w, h);
+      ctx.strokeStyle = active ? KEY_ACTIVE : KEY_BORDER;
+      ctx.lineWidth = active ? 2 : 1;
+      ctx.strokeRect(x + 0.5, y + 0.5, w - 1, h - 1);
+      ctx.fillStyle = active ? KEY_ACTIVE : TEXT;
+      ctx.font = "13px sans-serif";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText(label, x + w / 2, y + h / 2);
+    }
+
+    function drawGuide(gx, gy) {
+      if (!guide) return;
+      const canHighlight = !lastSnap || lastSnap.state === "BATTLE";
+      const isHeld = (entry) => canHighlight && entry.keys.some((k) => heldKeys.has(k));
+
+      ctx.fillStyle = TEXT;
+      ctx.font = "14px sans-serif";
+      ctx.textAlign = "left";
+      ctx.textBaseline = "top";
+      ctx.fillText("CONTROLS", gx, gy);
+
+      const slots = {
+        up: [gx + 52, gy + 28],
+        left: [gx + 4, gy + 62],
+        down: [gx + 52, gy + 62],
+        right: [gx + 100, gy + 62],
+      };
+      for (const entry of guide.cluster) {
+        const [kx, ky] = slots[entry.slot];
+        drawKeycap(kx, ky, 44, 28, entry.label, isHeld(entry));
+      }
+
+      ctx.fillStyle = GUIDE_TEXT;
+      ctx.font = "12px sans-serif";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "top";
+      ctx.fillText("Move / Soft / CW", gx + 74, gy + 96);
+
+      for (let i = 0; i < guide.rows.length; i++) {
+        const row = guide.rows[i];
+        const ry = gy + 128 + i * 34;
+        ctx.font = "13px sans-serif";
+        const capW = Math.max(38, Math.ceil(ctx.measureText(row.cap).width) + 14);
+        drawKeycap(gx + 4, ry, capW, 26, row.cap, isHeld(row));
+        ctx.fillStyle = TEXT;
+        ctx.font = "14px sans-serif";
+        ctx.textAlign = "left";
+        ctx.textBaseline = "middle";
+        ctx.fillText(row.desc, gx + 4 + capW + 10, ry + 13);
+      }
+    }
+
+    function render(snap) {
+      ctx.fillStyle = BG;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      if (snap.state === "MENU") {
+        drawCentered("TETRIS BATTLE", 78, 200, TEXT);
+        drawCentered("Enter: play vs bot", 32, 360, TEXT);
+        drawCentered(
+          "Arrows move  -  Up/X rotate  -  Z rotate back  -  C hold  -  Space hard drop",
+          20,
+          560,
+          GRID
+        );
+        return;
+      }
+
+      const [ox, oy] = snap.shake;
+      const sides = [
+        [220, "YOU"],
+        [780, "BOT"],
+      ];
+      ctx.textBaseline = "top";
+      for (let i = 0; i < sides.length; i++) {
+        const [x, label] = sides[i];
+        drawPlayer(snap.players[i], x + ox, 110 + oy);
+        ctx.fillStyle = TEXT;
+        ctx.font = "22px sans-serif";
+        ctx.textAlign = "left";
+        ctx.fillText(`${label}  wins ${snap.wins[i]}`, x + ox, 56 + oy);
+      }
+
+      ctx.fillStyle = TEXT;
+      ctx.font = "22px sans-serif";
+      ctx.textAlign = "left";
+      ctx.fillText(`Level ${snap.level}   Best of ${snap.best_of}`, 560 + ox, 16 + oy);
+
+      drawGuide(20 + ox, 224 + oy);
+
+      if (snap.overlay) {
+        ctx.fillStyle = "rgba(0, 0, 0, 0.67)";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        drawCentered(snap.overlay[0], 60, 280, TEXT);
+        drawCentered(snap.overlay[1], 26, 380, TEXT);
+      }
+    }
+
+    window.addEventListener("keydown", (e) => {
+      const name = mapKey(e);
+      if (!name) return;
+      if (PREVENT_KEYS.has(name)) e.preventDefault();
+      if (e.repeat) return;
+      heldKeys.add(name);
+      if (session) session.on_key_down(name);
+    });
+
+    window.addEventListener("keyup", (e) => {
+      const name = mapKey(e);
+      if (name) heldKeys.delete(name);
+    });
+
+    window.addEventListener("blur", () => {
+      heldKeys.clear();
+    });
+
+    canvas.addEventListener("click", () => {
+      canvas.focus();
+      if (session && lastSnap && (lastSnap.state === "MENU" || lastSnap.state === "ROUND_END" || lastSnap.state === "MATCH_OVER")) {
+        session.on_key_down("enter");
+      }
+    });
+
+    async function boot() {
+      ctx.fillStyle = BG;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      const pyodide = await loadPyodide();
+      statusEl.textContent = "Loading game modules...";
+
+      const files = await Promise.all(
+        PY_FILES.map(async (path) => {
+          const res = await fetch(path);
+          if (!res.ok) {
+            throw new Error(`Failed to load ${path} (${res.status})`);
+          }
+          return [path, await res.text()];
+        })
+      );
+
+      for (const [path, content] of files) {
+        const full = `/app/${path}`;
+        const dir = full.slice(0, full.lastIndexOf("/"));
+        pyodide.FS.mkdirTree(dir);
+        pyodide.FS.writeFile(full, content);
+      }
+
+      pyodide.runPython(`
+import sys
+if "/app" not in sys.path:
+    sys.path.insert(0, "/app")
+from tetris.web_app import WebSession
+_web_session = WebSession()
+`);
+
+      session = pyodide.globals.get("_web_session");
+      shapes = JSON.parse(session.shapes_json());
+      guide = JSON.parse(session.guide_json());
+      statusEl.classList.add("hidden");
+      canvas.focus();
+
+      let lastTs = null;
+      function frame(ts) {
+        const dt = lastTs === null ? 0 : (ts - lastTs) / 1000;
+        lastTs = ts;
+        const snap = JSON.parse(session.tick_json(dt, JSON.stringify([...heldKeys])));
+        lastSnap = snap;
+        render(snap);
+        requestAnimationFrame(frame);
+      }
+      requestAnimationFrame(frame);
+    }
+
+    boot().catch((err) => {
+      statusEl.textContent = `Failed to start Tetris Battle: ${err.message}`;
+      statusEl.classList.add("error");
+      console.error(err);
+    });
+  </script>
+</body>
+</html>

@@ -1,14 +1,22 @@
 """pygame drawing for boards, queues and the match HUD (primitives only, no art)."""
+from collections.abc import Collection
+
 import pygame
 
 from tetris.engine.board import HEIGHT, VISIBLE, WIDTH
 from tetris.engine.match import Match
 from tetris.engine.pieces import SHAPES, Piece
-from tetris.engine.player import Player
+from tetris.engine.player import Action, Player
+from tetris.settings import DEFAULT_KEYS, guide_layout
 
 BG = (14, 16, 24)
 GRID = (30, 34, 48)
 TEXT = (220, 224, 236)
+GUIDE_TEXT = (138, 146, 172)
+KEY_BORDER = (60, 68, 92)
+KEY_BG = (20, 24, 36)
+KEY_ACTIVE = (0, 200, 220)
+KEY_ACTIVE_BG = (11, 56, 67)
 GARBAGE = (110, 110, 120)
 METER = (220, 60, 60)
 COLORS = {
@@ -76,8 +84,48 @@ def draw_player(surface: pygame.Surface, player: Player, topleft: tuple[int, int
         surface.blit(pygame.font.Font(None, 48).render("TOPPED OUT", True, METER), (x0 + 30, y0 + fh // 2))
 
 
+def _draw_keycap(surface: pygame.Surface, rect: pygame.Rect, label: str, font: pygame.font.Font, active: bool) -> None:
+    pygame.draw.rect(surface, KEY_ACTIVE_BG if active else KEY_BG, rect)
+    pygame.draw.rect(surface, KEY_ACTIVE if active else KEY_BORDER, rect, 2 if active else 1)
+    img = font.render(label, True, KEY_ACTIVE if active else TEXT)
+    surface.blit(img, (rect.x + (rect.w - img.get_width()) // 2, rect.y + (rect.h - img.get_height()) // 2))
+
+
+def _draw_guide(surface: pygame.Surface, offset: tuple[int, int],
+                keys: dict[Action, list[str]] | None, held: Collection[Action] | None) -> None:
+    ox, oy = offset
+    guide = guide_layout(DEFAULT_KEYS if keys is None else keys)
+    label_font = pygame.font.Font(None, 20)
+    cap_font = pygame.font.Font(None, 20)
+    caption_font = pygame.font.Font(None, 18)
+
+    surface.blit(label_font.render("CONTROLS", True, TEXT), (20 + ox, 224 + oy))
+    slots = {
+        "up": (72 + ox, 252 + oy),
+        "left": (24 + ox, 286 + oy),
+        "down": (72 + ox, 286 + oy),
+        "right": (120 + ox, 286 + oy),
+    }
+    for entry in guide["cluster"]:
+        kx, ky = slots[entry["slot"]]
+        active = bool(held and Action[entry["action"]] in held)
+        _draw_keycap(surface, pygame.Rect(kx, ky, 44, 28), entry["label"], cap_font, active)
+
+    caption = caption_font.render("Move / Soft / CW", True, GUIDE_TEXT)
+    surface.blit(caption, (94 + ox - caption.get_width() // 2, 320 + oy))
+
+    for i, row in enumerate(guide["rows"]):
+        ry = 352 + oy + i * 34
+        cap_w = max(38, cap_font.size(row["cap"])[0] + 14)
+        active = bool(row["action"] is not None and held and Action[row["action"]] in held)
+        _draw_keycap(surface, pygame.Rect(24 + ox, ry, cap_w, 26), row["cap"], cap_font, active)
+        desc = label_font.render(row["desc"], True, TEXT)
+        surface.blit(desc, (24 + ox + cap_w + 10, ry + (26 - desc.get_height()) // 2))
+
+
 def draw_match(surface: pygame.Surface, match: Match, offset: tuple[int, int] = (0, 0),
-               flash: tuple[list[int], list[int]] | None = None, pulse: tuple[float, float] = (0.0, 0.0)) -> None:
+               flash: tuple[list[int], list[int]] | None = None, pulse: tuple[float, float] = (0.0, 0.0),
+               keys: dict[Action, list[str]] | None = None, held: Collection[Action] | None = None) -> None:
     surface.fill(BG)
     ox, oy = offset
     font = pygame.font.Font(None, 30)
@@ -85,6 +133,7 @@ def draw_match(surface: pygame.Surface, match: Match, offset: tuple[int, int] = 
         draw_player(surface, match.players[i], (x + ox, 110 + oy),
                     flash_rows=flash[i] if flash else None, pulse=pulse[i])
         surface.blit(font.render(f"{label}  wins {match.wins[i]}", True, TEXT), (x + ox, 56 + oy))
+    _draw_guide(surface, offset, keys, held)
     info = f"Level {match.level}   Best of {match.best_of}"
     surface.blit(font.render(info, True, TEXT), (560 + ox, 16 + oy))
 
@@ -126,7 +175,7 @@ def draw_overlay(surface: pygame.Surface, title: str, hint: str) -> None:
     _centered(surface, hint, 36, 380)
 
 
-def draw_flow(surface: pygame.Surface, flow, effects) -> None:
+def draw_flow(surface: pygame.Surface, flow, effects, held: Collection[Action] | None = None) -> None:
     from tetris.ui.screens import State
 
     if flow.state is State.MENU:
@@ -134,7 +183,8 @@ def draw_flow(surface: pygame.Surface, flow, effects) -> None:
         return
     draw_match(surface, flow.match, effects.shake_offset(),
                flash=(effects.flash_rows(0), effects.flash_rows(1)),
-               pulse=(effects.meter_pulse(0), effects.meter_pulse(1)))
+               pulse=(effects.meter_pulse(0), effects.meter_pulse(1)),
+               keys=flow.settings.keys, held=held)
     text = overlay_text(flow)
     if text:
         draw_overlay(surface, *text)

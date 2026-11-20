@@ -74,7 +74,7 @@ def run(max_frames: int | None = None,
                     if flow.state is not State.BATTLE:
                         handler.reset()
                 effects.update()
-            draw_flow(screen, flow, effects)
+            draw_flow(screen, flow, effects, held=held if flow.state is State.BATTLE else None)
             pygame.display.flip()
     finally:
         pygame.quit()
